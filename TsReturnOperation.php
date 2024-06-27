@@ -4,6 +4,7 @@
  * валидирует их, выясняет тип операции, дополняет данные для уведомлений
  * и выполняет уведомления. Результат уведомлений фиксируется в заданной структуре
  * и возвращается в основном рабочем методе doOperation()
+ * Обслуживается событие в Event Sourcing архитектуре
  *
  * Рефакторинг:
  * Меняю название файла по имени класса
@@ -27,18 +28,20 @@
  * Добавляю PhpDoc для методов с исключениями
  * Форматирование максимально близко к PSR12
  * Внешние данные для вывода в уведомлениях фильтруются по HTML тегам
+ * Исключения перехватываются с отправляются клиенту в виде ошибки, операция всегда возвращает результат
  *
  * TODO:
- * вынести интерфейсы,
+ * извлечь интерфейсы,
  * создать инверсию зависимости через конструктор вместо обращения к глобальному массиву
  * выполнять получение и возврат данных только посредством DTO (исключить массивы)
- * вынести общие методы в абстрактный класс
+ * извлечь общие методы в абстрактный класс
  * перенести оставшиеся строковые значения в константы на базе использующих их классов
- * максимально детерминировать формат обмена данными с классами уведомлений
+ * максимально детерминировать формат обмена данными с классами NotificationManager, MessagesClient
  * изменить принцип именования классов на более говорящий и единый с абстрактным классом
  * нормализовать формат неймспейсов согласно PSR12
  * изменить названия методов и переменных к более говорящим о их сути
  * уменьшить размер класса за счет выноса методов или классов
+ * расширить описание и источник ошибок в исключениях
  */
 
 namespace NW\WebService\References\Operations\Notification;
@@ -66,15 +69,16 @@ final class TsReturnOperation extends ReferencesOperation
     private array $notifyTemplateData;
     private string $emailFrom;
 
-    /**
-     * @throws \Exception
-     */
     public function doOperation(): array
     {
-        $this->loadOperationData();
-        $this->loadContractors();
-        $this->loadDifferences();
-        $this->loadNotifyData();
+        try {
+            $this->setOperationData();
+            $this->setContractors();
+            $this->setDifferences();
+            $this->setNotifyData();
+        } catch (\Exception $exception) {
+            $this->result['notificationClientBySms']['message'] = $exception->getMessage();
+        }
         $this->notifyEmployeeAndSetResult();
         $this->notifyClientAndSetResult();
 
@@ -84,7 +88,7 @@ final class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    public function loadOperationData()
+    public function setOperationData()
     {
         $this->data_array = $this->getRequest('data');
         $this->validateDataArray();
@@ -133,7 +137,6 @@ final class TsReturnOperation extends ReferencesOperation
     private function validateReseller()
     {
         if (empty($this->operationData->resellerId)) {
-            $this->result['notificationClientBySms']['message'] = 'Empty resellerId';
             throw new \Exception('Empty resellerId', 400);
         }
         if (is_null(Seller::getById($this->operationData->resellerId))) {
@@ -154,21 +157,21 @@ final class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    private function loadContractors()
+    private function setContractors()
     {
-        $this->loadClient();
-        $this->loadCreator();
-        $this->loadExpert();
+        $this->setClient();
+        $this->setCreator();
+        $this->setExpert();
     }
 
     /**
      * @throws \Exception
      */
-    private function loadClient()
+    private function setClient()
     {
         $this->client = Contractor::getById($this->operationData->clientId);
         $this->validateClient();
-        $this->loadClientFullName();
+        $this->setClientFullName();
     }
 
     /**
@@ -187,7 +190,7 @@ final class TsReturnOperation extends ReferencesOperation
         }
     }
 
-    private function loadClientFullName()
+    private function setClientFullName()
     {
         $this->clientFullName = $this->client->getFullName();
         if (empty($this->clientFullName)) {
@@ -198,7 +201,7 @@ final class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    private function loadCreator()
+    private function setCreator()
     {
         $this->creator = Employee::getById($this->operationData->creatorId);
         $this->validateCreator();
@@ -217,7 +220,7 @@ final class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    private function loadExpert()
+    private function setExpert()
     {
         $this->expert = Employee::getById($this->operationData->expertId);
         $this->validateExpert();
@@ -236,7 +239,7 @@ final class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    private function loadDifferences()
+    private function setDifferences()
     {
         $this->validateDifferences();
         if ($this->operationData->notificationType === self::TYPE_NEW) {
@@ -269,7 +272,7 @@ final class TsReturnOperation extends ReferencesOperation
     /**
      * @throws \Exception
      */
-    private function loadNotifyData()
+    private function setNotifyData()
     {
         $this->notifyTemplateData = [
             'COMPLAINT_ID' => $this->operationData->complaintId,
