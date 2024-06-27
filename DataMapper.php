@@ -4,27 +4,26 @@ namespace NW\WebService\References\Operations\Notification;
 
 final class DataMapper implements DataMapperInterface
 {
-    private readonly OperationRequest $request;
+    private readonly OperationRequestDTO $request;
 
     public function __construct(readonly array $data_array)
     {
+        $this->validateDataArray();
     }
 
     /**
      * @throws \Exception
      */
-    public function getData(): OperationData
+    public function getData(): OperationDataDTO
     {
-        $this->validateDataArray();
+        $data = new OperationDataDTO();
 
-        $data = new OperationData();
-
-        $this->request = new OperationRequest();
+        $this->request = new OperationRequestDTO();
         $this->fillDtoByArray(obj: $this->request, values: $this->data_array);
         $this->validateRequest($this->request);
         $data->request = $this->request;
 
-        $contractors = new OperationContractors();
+        $contractors = new OperationContractorsDTO();
         $contractors->client = $this->getClient();
         $contractors->creator = $this->getCreator();
         $contractors->expert = $this->getExpert();
@@ -45,7 +44,7 @@ final class DataMapper implements DataMapperInterface
         }
     }
 
-    private function fillDtoByArray(DataDTO $obj, array $values)
+    private function fillDtoByArray(DTO $obj, array $values)
     {
         foreach ($values as $key => $value) {
             if (!property_exists($obj, $key)) {
@@ -63,7 +62,7 @@ final class DataMapper implements DataMapperInterface
     /**
      * @throws \Exception
      */
-    private function validateRequest(OperationRequest $request)
+    private function validateRequest(OperationRequestDTO $request)
     {
         $this->validateReseller($request);
         $this->validateNotificationType($request);
@@ -72,7 +71,7 @@ final class DataMapper implements DataMapperInterface
     /**
      * @throws \Exception
      */
-    private function validateReseller(OperationRequest $request)
+    private function validateReseller(OperationRequestDTO $request)
     {
         if (empty($request->resellerId)) {
             throw new \Exception('Empty resellerId', 400);
@@ -85,7 +84,7 @@ final class DataMapper implements DataMapperInterface
     /**
      * @throws \Exception
      */
-    private function validateNotificationType(OperationRequest $request)
+    private function validateNotificationType(OperationRequestDTO $request)
     {
         if (empty($request->notificationType)) {
             throw new \Exception('Empty notificationType', 400);

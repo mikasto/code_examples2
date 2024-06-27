@@ -7,5 +7,5 @@ interface DataMapperInterface
     /**
      * @throws \Exception
      */
-    public function getData(): OperationData;
+    public function getData(): OperationDataDTO;
 }

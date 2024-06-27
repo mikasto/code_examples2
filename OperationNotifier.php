@@ -4,7 +4,7 @@ namespace NW\WebService\References\Operations\Notification;
 
 final class OperationNotifier implements NotifierInterface
 {
-    private OperationData $data;
+    private OperationDataDTO $data;
     private array $notifyTemplateData;
 
     public function __construct(private readonly DataMapperInterface $dataMapper)

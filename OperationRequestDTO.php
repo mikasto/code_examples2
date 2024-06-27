@@ -2,7 +2,7 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-final readonly class OperationRequest extends DataDTO
+final readonly class OperationRequestDTO extends DTO
 {
         public int $resellerId;
         public int $notificationType;
