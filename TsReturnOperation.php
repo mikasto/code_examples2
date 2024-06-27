@@ -45,6 +45,7 @@
  * расширить описание и источник ошибок в исключениях
  * фиксировать ошибку исключений в системный лог
  * модульные тесты
+ * выяснить поведение MessagesClient при ошибке и обработать
  */
 
 namespace NW\WebService\References\Operations\Notification;
@@ -100,10 +101,9 @@ final class TsReturnOperation extends ReferencesOperation
     }
 
     /**
-     * @return void
      * @throws \Exception
      */
-    private function validateDataArray(): void
+    private function validateDataArray()
     {
         if (!is_array($this->data_array)) {
             throw new \Exception('Request data is not valid array type', 400);
