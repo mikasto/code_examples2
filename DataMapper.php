@@ -2,7 +2,7 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-final class OperationDataMapper
+final class DataMapper implements DataMapperInterface
 {
     private readonly OperationRequest $request;
 

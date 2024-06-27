@@ -32,10 +32,10 @@
  * Исключения перехватываются с отправляются клиенту в виде ошибки, операция всегда возвращает результат
  * Добавлен конструктор с $data_array для передачи поля data из $_REQUEST
  * Класс имеет слишком много ответственности и разделен на несколько классов
+ * Выносим конфигурацию всех классов на более высокий уровень абстракции через DI
+ * Извлек интерфейсы для конструкторов
  *
  * TODO:
- * извлечь интерфейсы,
- * создать инверсию зависимости через конструктор вместо обращения к глобальному массиву
  * выполнять получение и возврат данных только посредством DTO (исключить массивы)
  * перенести оставшиеся строковые значения в константы на базе использующих их классов
  * максимально детерминировать формат обмена данными с классами NotificationManager, MessagesClient
@@ -64,33 +64,24 @@ final class TsReturnOperation extends ReferencesOperation
         ],
     ];
 
-    public function __construct(private readonly array $data_array)
+    public function __construct(private readonly NotifierInterface $notifier)
     {
     }
 
     public function doOperation(): array
     {
-        try {
-            $operationDataMapper = new OperationDataMapper($this->data_array);
-            $operationNotifier = new OperationNotifier($operationDataMapper->getData());
-        } catch (\Exception $exception) {
-            $this->result['notificationClientBySms']['message'] = $exception->getMessage() . "\n";
-        }
-        if (!is_null($operationNotifier)) {
-            $this->notify($operationNotifier);
-        }
+        $this->notify();
 
         return $this->result;
     }
 
-    private function notify(OperationNotifier $operationNotifier)
+    private function notify()
     {
-        $this->result['notificationEmployeeByEmail'] = $operationNotifier->notifyEmployeeByMail(self::EVENT);
-        $this->result['notificationClientByEmail'] = $operationNotifier->notifyClientByMail();
+        $this->result['notificationEmployeeByEmail'] = $this->notifier->notifyEmployeeByMail(self::EVENT);
+        $this->result['notificationClientByEmail'] = $this->notifier->notifyClientByMail();
 
-        $messenger_responce = $operationNotifier->notifyClientByMessenger();
-        $this->result['notificationClientBySms']['isSent']
-            = empty($messenger_responce->error) && $messenger_responce->isSent;
-        $this->result['notificationClientBySms']['message'] .= $messenger_responce->error . "\n";
+        $responce = $this->notifier->notifyClientByMessenger();
+        $this->result['notificationClientBySms']['isSent'] = empty($responce->error) && $responce->isSent;
+        $this->result['notificationClientBySms']['message'] .= $responce->error . "\n";
     }
 }

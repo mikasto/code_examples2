@@ -2,19 +2,21 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-final class OperationNotifier
+final class OperationNotifier implements NotifierInterface
 {
+    private OperationData $data;
     private array $notifyTemplateData;
 
-    public function __construct(private OperationData $data)
+    public function __construct(private readonly DataMapperInterface $dataMapper)
     {
+        $this->data = $this->dataMapper->getData();
         $this->setNotifyTemplateData();
     }
 
     /**
      * @throws \Exception
      */
-    public function setNotifyTemplateData()
+    private function setNotifyTemplateData()
     {
         $this->notifyTemplateData = [
             'COMPLAINT_ID' => $this->data->request->complaintId,
@@ -38,7 +40,7 @@ final class OperationNotifier
     /**
      * @throws \Exception
      */
-    public function validateNotifyTemplateData()
+    private function validateNotifyTemplateData()
     {
         foreach ($this->notifyTemplateData as $key => $value) {
             if (empty($value)) {
@@ -47,7 +49,7 @@ final class OperationNotifier
         }
     }
 
-    public function filterNotifyTemplateDataByHtmlTags()
+    private function filterNotifyTemplateDataByHtmlTags()
     {
         foreach ($this->notifyTemplateData as $key => $value) {
             if (gettype($value) === 'string') {
@@ -56,7 +58,7 @@ final class OperationNotifier
         }
     }
 
-    public function canNotifyClient(): bool
+    private function canNotifyClient(): bool
     {
         if (($this->data->request->notificationType !== OperationTypes::TYPE_CHANGE)
             || empty($this->data->request->differences)
