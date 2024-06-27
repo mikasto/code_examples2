@@ -74,7 +74,7 @@ final class TsReturnOperation extends ReferencesOperation
             $operationDataMapper = new OperationDataMapper($this->data_array);
             $operationNotifier = new OperationNotifier($operationDataMapper->getData());
         } catch (\Exception $exception) {
-            $this->result['notificationClientBySms']['message'] = $exception->getMessage();
+            $this->result['notificationClientBySms']['message'] = $exception->getMessage() . "\n";
         }
         if (!is_null($operationNotifier)) {
             $this->notify($operationNotifier);
@@ -91,6 +91,6 @@ final class TsReturnOperation extends ReferencesOperation
         $messenger_responce = $operationNotifier->notifyClientByMessenger();
         $this->result['notificationClientBySms']['isSent']
             = empty($messenger_responce->error) && $messenger_responce->isSent;
-        $this->result['notificationClientBySms']['message'] = $messenger_responce->error;
+        $this->result['notificationClientBySms']['message'] .= $messenger_responce->error . "\n";
     }
 }
