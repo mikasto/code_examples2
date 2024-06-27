@@ -30,6 +30,7 @@
  * Форматирование максимально близко к PSR12
  * Внешние данные для вывода в уведомлениях фильтруются по HTML тегам
  * Исключения перехватываются с отправляются клиенту в виде ошибки, операция всегда возвращает результат
+ * Добавлен конструктор с $data_array для передачи поля data из $_REQUEST
  *
  * TODO:
  * извлечь интерфейсы,
@@ -47,6 +48,7 @@
  * модульные тесты
  * выяснить поведение MessagesClient при ошибке и обработать
  * класс имеет слишком много ответственности и должен быть разделен на несколько классов
+ * функция __() осталась загадкой
  */
 
 namespace NW\WebService\References\Operations\Notification;
@@ -54,9 +56,6 @@ namespace NW\WebService\References\Operations\Notification;
 final class TsReturnOperation extends ReferencesOperation
 {
     public const EVENT = 'tsGoodsReturn';
-    public const TYPE_NEW = 1;
-    public const TYPE_CHANGE = 2;
-    private OperationData $operationData;
     private array $result = [
         'notificationEmployeeByEmail' => false,
         'notificationClientByEmail' => false,
@@ -65,13 +64,6 @@ final class TsReturnOperation extends ReferencesOperation
             'message' => '',
         ],
     ];
-    private Contractor $client;
-    private Contractor $creator;
-    private Contractor $expert;
-    private string $clientFullName;
-    private string $differences;
-    private array $notifyTemplateData;
-    private string $emailFrom;
 
     public function __construct(private readonly array $data_array)
     {
@@ -80,262 +72,26 @@ final class TsReturnOperation extends ReferencesOperation
     public function doOperation(): array
     {
         try {
-            $this->setOperationData();
-            $this->setContractors();
-            $this->setDifferences();
-            $this->setNotifyData();
+            $operationDataMapper = new OperationDataMapper($this->data_array);
+            $operationNotifier = new OperationNotifier($operationDataMapper->getData());
         } catch (\Exception $exception) {
             $this->result['notificationClientBySms']['message'] = $exception->getMessage();
         }
-        $this->notifyEmployeeAndSetResult();
-        $this->notifyClientAndSetResult();
+        if (!is_null($operationNotifier)) {
+            $this->notify($operationNotifier);
+        }
 
         return $this->result;
     }
 
-    /**
-     * @throws \Exception
-     */
-    public function setOperationData()
+    private function notify(OperationNotifier $operationNotifier)
     {
-        $operationDataMapper = new OperationDataMapper($this->data_array);
-        $this->operationData = $operationDataMapper->getData();
-    }
+        $this->result['notificationEmployeeByEmail'] = $operationNotifier->notifyEmployeeByMail(self::EVENT);
+        $this->result['notificationClientByEmail'] = $operationNotifier->notifyClientByMail();
 
-    /**
-     * @throws \Exception
-     */
-    private function setContractors()
-    {
-        $this->setClient();
-        $this->setCreator();
-        $this->setExpert();
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function setClient()
-    {
-        $this->client = Contractor::getById($this->operationData->clientId);
-        $this->validateClient();
-        $this->setClientFullName();
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateClient()
-    {
-        if (is_null($this->client)) {
-            throw new \Exception('client not found!', 400);
-        }
-        if ($this->client->type !== Contractor::TYPE_CUSTOMER) {
-            throw new \Exception('bad client type', 400);
-        }
-        if ($this->client->Seller->id !== $this->operationData->resellerId) {
-            throw new \Exception('client and reseller can not be equals', 400);
-        }
-    }
-
-    private function setClientFullName()
-    {
-        $this->clientFullName = $this->client->getFullName();
-        if (empty($this->clientFullName)) {
-            $this->clientFullName = $this->client->name;
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function setCreator()
-    {
-        $this->creator = Employee::getById($this->operationData->creatorId);
-        $this->validateCreator();
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateCreator()
-    {
-        if (is_null($this->creator)) {
-            throw new \Exception('Creator not found!', 400);
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function setExpert()
-    {
-        $this->expert = Employee::getById($this->operationData->expertId);
-        $this->validateExpert();
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateExpert()
-    {
-        if (is_null($this->expert)) {
-            throw new \Exception('Expert not found!', 400);
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function setDifferences()
-    {
-        $this->validateDifferences();
-        if ($this->operationData->notificationType === self::TYPE_NEW) {
-            $this->differences = __('NewPositionAdded', null, $this->operationData->resellerId);
-        } else {
-            $differences = [
-                'FROM' => Status::getName($this->operationData->differences->from),
-                'TO' => Status::getName($this->operationData->differences->to),
-            ];
-            $this->differences = __('PositionStatusHasChanged', $differences, $this->operationData->resellerId);
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateDifferences()
-    {
-        if ($this->operationData->notificationType === self::TYPE_NEW) {
-            return;
-        }
-        if (is_null($this->operationData->differences)) {
-            throw new \Exception('notification type not valid with empty differences');
-        }
-        if ($this->operationData->notificationType !== self::TYPE_CHANGE) {
-            throw new \Exception('notification type not valid for differences');
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function setNotifyData()
-    {
-        $this->notifyTemplateData = [
-            'COMPLAINT_ID' => $this->operationData->complaintId,
-            'COMPLAINT_NUMBER' => $this->operationData->complaintNumber,
-            'CREATOR_ID' => $this->operationData->creatorId,
-            'CREATOR_NAME' => $this->creator->getFullName(),
-            'EXPERT_ID' => $this->operationData->expertId,
-            'EXPERT_NAME' => $this->expert->getFullName(),
-            'CLIENT_ID' => $this->operationData->clientId,
-            'CLIENT_NAME' => $this->clientFullName,
-            'CONSUMPTION_ID' => $this->operationData->consumptionId,
-            'CONSUMPTION_NUMBER' => $this->operationData->consumptionNumber,
-            'AGREEMENT_NUMBER' => $this->operationData->agreementNumber,
-            'DATE' => $this->operationData->date,
-            'DIFFERENCES' => $this->differences,
-        ];
-        $this->validateNotifyTemplateData();
-        $this->filterNotifyTemplateDataByHtmlTags();
-        $this->emailFrom = getResellerEmailFrom($this->operationData->resellerId);
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateNotifyTemplateData()
-    {
-        foreach ($this->notifyTemplateData as $key => $value) {
-            if (empty($value)) {
-                throw new \Exception("Notify Template Data ({$key}) is empty!", 500);
-            }
-        }
-    }
-
-    private function filterNotifyTemplateDataByHtmlTags()
-    {
-        foreach ($this->notifyTemplateData as $key => $value) {
-            if (gettype($value) === 'string') {
-                $this->notifyTemplateData[$key] = strip_tags($value);
-            }
-        }
-    }
-
-    private function notifyEmployeeAndSetResult()
-    {
-        $emails = getEmailsByPermit($this->operationData->resellerId, self::EVENT);
-        if (empty($this->emailFrom) || !count($emails)) {
-            return;
-        }
-        $resellerId = $this->operationData->resellerId;
-        foreach ($emails as $email) {
-            $message = [ // MessageTypes::EMAIL
-                'emailFrom' => $this->emailFrom,
-                'emailTo' => $email,
-                'subject' => __('complaintEmployeeEmailSubject', $this->notifyTemplateData, $resellerId),
-                'message' => __('complaintEmployeeEmailBody', $this->notifyTemplateData, $resellerId),
-            ];
-            MessagesClient::sendMessage(
-                [$message],
-                $resellerId,
-                NotificationEvents::CHANGE_RETURN_STATUS
-            );
-        }
-        $this->result['notificationEmployeeByEmail'] = true;
-    }
-
-    private function notifyClientAndSetResult()
-    {
-        if (($this->operationData->notificationType !== self::TYPE_CHANGE)
-            || empty($this->operationData->differences)
-            || empty($this->operationData->differences->to)
-        ) {
-            return;
-        }
-        if (!empty($this->emailFrom) && !empty($this->client->email)) {
-            $this->sendEmailToClientAndSetResult();
-        }
-        if (!empty($this->client->mobile)) {
-            $this->sendMessageToClientAndSetResult();
-        }
-    }
-
-    private function sendEmailToClientAndSetResult()
-    {
-        $resellerId = $this->operationData->resellerId;
-        $message = [ // MessageTypes::EMAIL
-            'emailFrom' => $this->emailFrom,
-            'emailTo' => $this->client->email,
-            'subject' => __('complaintClientEmailSubject', $this->notifyTemplateData, $resellerId),
-            'message' => __('complaintClientEmailBody', $this->notifyTemplateData, $resellerId),
-        ];
-        MessagesClient::sendMessage(
-            [$message],
-            $resellerId,
-            $this->client->id,
-            NotificationEvents::CHANGE_RETURN_STATUS,
-            $this->operationData->differences->to
-        );
-        $this->result['notificationClientByEmail'] = true;
-    }
-
-    private function sendMessageToClientAndSetResult()
-    {
-        $error = '';
-        $notifyResult = NotificationManager::send(
-            $this->operationData->resellerId,
-            $this->client->id,
-            NotificationEvents::CHANGE_RETURN_STATUS,
-            $this->operationData->differences->to,
-            $this->notifyTemplateData,
-            $error
-        );
-        if ($notifyResult) {
-            $this->result['notificationClientBySms']['isSent'] = true;
-        } elseif (!empty($error)) {
-            $this->result['notificationClientBySms']['message'] = $error;
-        }
+        $messenger_responce = $operationNotifier->notifyClientByMessenger();
+        $this->result['notificationClientBySms']['isSent']
+            = empty($messenger_responce->error) && $messenger_responce->isSent;
+        $this->result['notificationClientBySms']['message'] = $messenger_responce->error;
     }
 }
