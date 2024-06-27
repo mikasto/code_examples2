@@ -56,7 +56,6 @@ final class TsReturnOperation extends ReferencesOperation
     public const EVENT = 'tsGoodsReturn';
     public const TYPE_NEW = 1;
     public const TYPE_CHANGE = 2;
-    private array $data_array;
     private OperationData $operationData;
     private array $result = [
         'notificationEmployeeByEmail' => false,
@@ -73,6 +72,10 @@ final class TsReturnOperation extends ReferencesOperation
     private string $differences;
     private array $notifyTemplateData;
     private string $emailFrom;
+
+    public function __construct(private readonly array $data_array)
+    {
+    }
 
     public function doOperation(): array
     {
@@ -95,67 +98,8 @@ final class TsReturnOperation extends ReferencesOperation
      */
     public function setOperationData()
     {
-        $this->data_array = $this->getRequest('data');
-        $this->validateDataArray();
-        $this->fillDtoByArray(obj: $this->operationData, values: $this->data_array);
-        $this->validateOperationData();
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateDataArray()
-    {
-        if (!is_array($this->data_array)) {
-            throw new \Exception('Request data is not valid array type', 400);
-        }
-    }
-
-    private function fillDtoByArray(DataDTO $obj, array $values)
-    {
-        foreach ($values as $key => $value) {
-            if (!property_exists($obj, $key)) {
-                continue;
-            }
-            if (is_scalar($value)) {
-                $obj->{$key} = $value;
-            }
-            if (is_array($value)) {
-                $this->fillDtoByArray($obj->{$key}, $value);
-            }
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateOperationData()
-    {
-        $this->validateReseller();
-        $this->validateNotificationType();
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateReseller()
-    {
-        if (empty($this->operationData->resellerId)) {
-            throw new \Exception('Empty resellerId', 400);
-        }
-        if (is_null(Seller::getById($this->operationData->resellerId))) {
-            throw new \Exception('Seller not found!', 400);
-        }
-    }
-
-    /**
-     * @throws \Exception
-     */
-    private function validateNotificationType()
-    {
-        if (empty($this->operationData->notificationType)) {
-            throw new \Exception('Empty notificationType', 400);
-        }
+        $operationDataMapper = new OperationDataMapper($this->data_array);
+        $this->operationData = $operationDataMapper->getData();
     }
 
     /**
