@@ -2,6 +2,7 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-abstract class DTO
+
+abstract class AbstractDTO
 {
 }

@@ -2,7 +2,7 @@
 
 namespace NW\WebService\References\Operations\Notification;
 
-final readonly class OperationRequestDTO extends DTO
+final readonly class OperationRequestDTO extends AbstractDTO
 {
         public int $resellerId;
         public int $notificationType;
@@ -15,5 +15,5 @@ final readonly class OperationRequestDTO extends DTO
         public string $consumptionNumber;
         public string $agreementNumber;
         public string $date;
-        public OperationDifferences $differences;
+        public OperationDifferencesDTO $differences;
 }

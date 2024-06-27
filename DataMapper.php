@@ -44,7 +44,7 @@ final class DataMapper implements DataMapperInterface
         }
     }
 
-    private function fillDtoByArray(DTO $obj, array $values)
+    private function fillDtoByArray(AbstractDTO $obj, array $values)
     {
         foreach ($values as $key => $value) {
             if (!property_exists($obj, $key)) {
